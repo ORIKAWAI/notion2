@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Music Player</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.3.1/css/all.css" />
+
+  <style>
+    * {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background-color: #ffeff5;
+      min-height: 100vh;
+    }
+
+    /* ✅ 레이어 순서 고정: 배경(0) -> 흰 오버레이(1) -> 플레이어(2) */
+    #player-bg-artwork { z-index: 0; }
+    #player-bg-layer   { z-index: 1; }
+    #player-container  { z-index: 2; }
+
+    #player-bg-artwork {
+      position: fixed;
+      inset: -30px;
+      background-image: url("./assets/img/love1.png");
+      background-repeat: no-repeat;
+      background-size: cover;
+      background-position: 50%;
+      filter: blur(40px);
+    }
+
+    #player-bg-layer {
+      position: fixed;
+      inset: 0;
+      background-color: #fff;
+      opacity: 0.5;
+      pointer-events: none; /* ✅ 오버레이가 클릭 막지 않게 */
+    }
+
+   #player-container {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  width: 480px;
+
+  /* ✅ 정지 상태(=B만) 높이 */
+  height: 180px;
+  overflow: visible;
+
+  transform: translateY(-50%);
+  margin: 0 auto;
+
+  /* ✅ 상태 전환 애니메이션 */
+  transition: height 0.35s ease;
+}
+
+/* ✅ 재생 상태(=A+B 묶음) 높이 */
+#player-container.playing {
+  height: 260px; /* 필요하면 240~300 사이로 튜닝 */
+}
+
+
+
+
+
+    #player {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+
+    #player-track {
+  position: absolute;
+  top: 0;
+  left: 15px;
+  right: 15px;
+  background-color: #fff7f7;
+  border-radius: 15px 15px 0 0;
+  padding: 13px 22px 22px 184px;
+
+  z-index: 1;
+  padding-bottom: 34px;
+
+  /* 🔧 여기부터 핵심 */
+  transform: translateY(90px);      /* ⬅ 덜 내려가게 (160 → 120) */
+  opacity: 0.35;                     /* ⬅ 많이 어둡게 */
+  filter: blur(1.5px);               /* ⬅ 뒤에 숨어있는 느낌 */
+  transition:
+    transform 0.35s ease,
+    opacity 0.25s ease,
+    filter 0.25s ease;
+}
+
+    
+
+#player-track.active {
+  transform: translateY(0);
+  opacity: 1;
+  filter: none;
+}
+
+    #track-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #54576f;
+      margin-bottom: 6px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #track-sub {
+      font-size: 13px;
+      color: #acaebd;
+      margin-bottom: 10px;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #track-time {
+      height: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #current-time,
+    #track-length {
+      color: #f86d92;
+      font-size: 11px;
+    }
+
+    #seek-bar-container {
+      position: relative;
+      height: 6px;
+      border-radius: 6px;
+      background-color: #ffe8ee;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    #seek-bar {
+      position: absolute;
+      inset: 0 auto 0 0;
+      height: 100%;
+      width: 0%;
+      background-color: #fd6d94;
+    }
+
+    /* 하단 컨트롤 카드 */
+   #player-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 125px;
+  background-color: #fff;
+  box-shadow: 0 30px 80px #656565;
+  border-radius: 15px;
+  z-index: 2; /* ✅ B가 앞 */
+}
+
+    /* 앨범 아트 */
+    #album-art {
+      position: absolute;
+      top: -40px;
+      left: 40px;
+      width: 115px;
+      height: 115px;
+      box-shadow: 0 0 0 10px #fff;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #fff;
+      z-index: 3;
+    }
+
+    #album-art img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* 버튼 영역: float 제거하고 flex로 안정화 */
+    #player-controls {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 141px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 12px;
+    }
+
+    .button {
+  width: 56px;
+  height: 56px;
+  padding: 0;                 /* 🔧 padding 제거 */
+  background-color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;              /* 🔧 */
+  align-items: center;        /* 🔧 */
+  justify-content: center;    /* 🔧 */
+}
+
+.button i {
+  font-size: 26px;
+}
+
+    .button:hover {
+      background-color: #d6d6de;
+    }
+
+    .button:hover i {
+      color: #fff;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="player-bg-artwork"></div>
+  <div id="player-bg-layer"></div>
+
+  <div id="player-container">
+    <div id="player">
+      <div id="player-track">
+        <div id="track-title"></div>
+        <div id="track-sub"></div>
+
+        <div id="track-time">
+          <div id="current-time">00:00</div>
+          <div id="track-length">00:00</div>
+        </div>
+
+        <div id="seek-bar-container">
+          <div id="seek-bar"></div>
+        </div>
+      </div>
+
+      <div id="player-content">
+        <div id="album-art">
+          <img id="cover" src="./assets/img/love1.png" />
+        </div>
+
+        <div id="player-controls">
+          <div class="button" id="play-previous"><i class="fas fa-backward"></i></div>
+          <div class="button" id="play-pause-button"><i class="fas fa-play"></i></div>
+          <div class="button" id="play-next"><i class="fas fa-forward"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const tracks = [
+        { artist: "미노이",   title: "못참아!", audio: "./assets/music/cant.mp3",       image: "./assets/img/cant.png" },
+        { artist: "The Poles", title: "Space",                audio: "./assets/music/space.mp3",    image: "./assets/img/space.png" },
+        { artist: "Girl in red",   title: "We fell in love in October", audio: "./assets/music/love1.mp3",       image: "./assets/img/love1.png" },
+        { artist: "Sahyang & Yoi", title: "Over & Over",                audio: "./assets/music/overover.mp3",    image: "./assets/img/overover.png" },
+        { artist: "George",       title: "Like",                       audio: "./assets/music/george-like.mp3", image: "./assets/img/george-like.png" },
+        { artist: "H.E.R",        title: "best part",                  audio: "./assets/music/her-bestpart.mp3",image: "./assets/img/her-bestpart.png" },
+      ];
+
+      const playerTrack = document.querySelector("#player-track");
+      const trackTitle  = document.querySelector("#track-title");
+      const trackSub    = document.querySelector("#track-sub");
+      const cover       = document.querySelector("#cover");
+      const bgArtwork   = document.querySelector("#player-bg-artwork");
+      const playerContainer = document.querySelector("#player-container");
+
+
+      const playBtn = document.querySelector("#play-pause-button");
+      const icon    = playBtn.querySelector("i");
+      const prevBtn = document.querySelector("#play-previous");
+      const nextBtn = document.querySelector("#play-next");
+
+      const sArea   = document.querySelector("#seek-bar-container");
+      const seekBar = document.querySelector("#seek-bar");
+      const tCur    = document.querySelector("#current-time");
+      const tDur    = document.querySelector("#track-length");
+
+      const audio = new Audio();
+      audio.preload = "metadata";
+      let idx = 0;
+      let isSeeking = false;
+
+      function fmt(sec) {
+        if (!isFinite(sec)) return "00:00";
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+      }
+
+      function setUI(playing) {
+        icon.className = playing ? "fas fa-pause" : "fas fa-play";
+        playerTrack.classList.toggle("active", playing);
+        playerContainer.classList.toggle("playing", playing);
+      }
+
+      async function loadTrack(i, autoPlay=false) {
+        const t = tracks[i];
+
+        trackTitle.textContent = t.title || "";
+        trackSub.textContent   = t.artist || "";
+
+        cover.src = t.image;
+        bgArtwork.style.backgroundImage = `url("${t.image}")`;
+
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = t.audio;
+        audio.load();
+
+        seekBar.style.width = "0%";
+        tCur.textContent = "00:00";
+        tDur.textContent = "00:00";
+        setUI(false);
+
+        if (autoPlay) {
+          try {
+            await audio.play();
+            setUI(true);
+          } catch (e) {
+            setUI(false);
+            console.log("play() rejected:", e);
+          }
+        }
+      }
+
+      async function togglePlay() {
+        if (audio.paused) {
+          try {
+            await audio.play();
+            setUI(true);
+          } catch (e) {
+            console.log("play() rejected:", e);
+          }
+        } else {
+          audio.pause();
+          setUI(false);
+        }
+      }
+
+      function next() { idx = (idx + 1) % tracks.length; loadTrack(idx, true); }
+      function prev() { idx = (idx - 1 + tracks.length) % tracks.length; loadTrack(idx, true); }
+
+      audio.addEventListener("loadedmetadata", () => {
+        tDur.textContent = fmt(audio.duration);
+      });
+
+      audio.addEventListener("timeupdate", () => {
+        if (isSeeking) return;
+        const cur = audio.currentTime;
+        const dur = audio.duration || 0;
+        const p = dur ? (cur / dur) * 100 : 0;
+        tCur.textContent = fmt(cur);
+        tDur.textContent = fmt(dur);
+        seekBar.style.width = p + "%";
+      });
+
+      audio.addEventListener("ended", next);
+
+      sArea.addEventListener("click", (e) => {
+        const rect = sArea.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const dur = audio.duration || 0;
+        if (!dur) return;
+        audio.currentTime = (x / rect.width) * dur;
+      });
+
+      playBtn.addEventListener("click", togglePlay);
+      nextBtn.addEventListener("click", next);
+      prevBtn.addEventListener("click", prev);
+
+      loadTrack(idx, false);
+    });
+  </script>
+</body>
+</html>
